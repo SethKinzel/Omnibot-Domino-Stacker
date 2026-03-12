@@ -1,3 +1,4 @@
+
 /*
 Huge thanks to those who have derived the kinematic conrrols for omni-directional robots. This hackpack comes with an optional educational reading that I highly reccomend: (Siradjuddin, Indrazno. "Kinematics and control a three wheeled omnidirectional mobile robot." Int. J. Electr. Electron. Eng 6.12 (2019): 1-6.) [https://www.internationaljournalssrg.org/IJEEE/2019/Volume6-Issue12/IJEEE-V6I12P101.pdf] 
 
@@ -7,25 +8,26 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 */
 
 #include "config.h"
+#include <SPI.h>
+#include <RF24.h>
+#include <nRF24L01.h>
+#include <SK_RC_Payload.h>
+#include <Servo.h>
 
-#define RF_S1_V 19       // rf receiver signal pair 1, voltage
-#define RF_S1_G 18       // rf receiver signal pair 1, ground
-#define RF_S2_V 17
-#define RF_S2_G 16
-#define RF_S3_V 15
-#define RF_S3_G 14
-#define RF_S4_V 12
-#define RF_S4_G 11
+#define M1_DIR 7
+#define M1_PWM 6
+#define M2_DIR 2
+#define M2_PWM 3
+#define M3_DIR 4
+#define M3_PWM 5
 
-#define M1_DIR 4
-#define M1_PWM 5
-#define M2_DIR 7
-#define M2_PWM 6
-#define M3_DIR 8
-#define M3_PWM 9
+#define LIFT_DIR 8
+#define LIFT_PWM 9
 
-#define LIFT_DIR 2
-#define LIFT_PWM 3
+#define CE_PIN A0
+#define CSN_PIN A1
+
+#define SERVO_PIN A2
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>> KEY ROBOT VARIABLES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 //RF Commands ----------------------------------------------------
@@ -60,302 +62,79 @@ double tune = 1;
 // strafing timer variable for catching odd remote behavior
 unsigned long lastStrafe = 0;
 
+// receiver
+RF24 radio(CE_PIN, CSN_PIN); // CE, CSN
+// servo
+
+Servo servo1;
+
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SETUP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 void setup() {
   Serial.begin(115200);
-  Serial.println("OMNIB V0.9.1 ..... (01/22/2025)");
-  pinMode(RF_S1_V, INPUT_PULLUP);
-  pinMode(RF_S1_G, INPUT_PULLUP);
-  pinMode(RF_S2_V, INPUT_PULLUP);
-  pinMode(RF_S2_G, INPUT_PULLUP);
-  pinMode(RF_S3_V, INPUT_PULLUP);
-  pinMode(RF_S3_G, INPUT_PULLUP);
-  pinMode(RF_S4_V, INPUT_PULLUP);
-  pinMode(RF_S4_G, INPUT_PULLUP);
+  Serial.println("OMNIB");
+
+  servo1.attach(SERVO_PIN);
+  servo1.write(SERVO_RESET);
+
+  radio.begin();
+  radio.setPALevel(RF24_PA_MIN);
+  radio.setPayloadSize(sizeof(payload));
+  radio.openReadingPipe(0, address);
+  radio.startListening();
 }
 
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> LOOP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 void loop() {
-  getDirection();
+  handleRadio();
   moveBot();
 }
 
 
 
 // >>>>>>>>>>>>>>>>>>>>> RADIO COMMAND PROCESSING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// Read reciever input pins to decide what robot is going to do
-void getDirection(){
-  int command;
+void handleRadio() {
+  if (!radio.available()) return; // only run the rest of the function if there is new data
+  radio.read(&payload, sizeof(payload));
 
-  // inputs stores meaured RF controller states, inputArr stores processed data 
-  int inputArr[8];
-  int inputs[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-
-  // create time variable
-  unsigned long t = millis();
-
-  // sample for 10ms for any pins going LOW. Deals with RF signal dropoouts.
-  while(millis() < (t + 10)){
-    if(digitalRead(RF_S1_G) == 0){
-      inputs[0] = 0;
-    }
-    if(digitalRead(RF_S1_V) == 0){
-      inputs[1] = 0;
-    }
-    if(digitalRead(RF_S2_G) == 0){
-      inputs[2] = 0;
-    }
-    if(digitalRead(RF_S2_V) == 0){
-      inputs[3] = 0;
-    }
-    if(digitalRead(RF_S3_G) == 0){
-      inputs[4] = 0;
-    }
-    if(digitalRead(RF_S3_V) == 0){
-      inputs[5] = 0;
-    }
-    if(digitalRead(RF_S4_G) == 0){
-      inputs[6] = 0;
-    }
-    if(digitalRead(RF_S4_V) == 0){
-      inputs[7] = 0;
-    }
+  if(payload.lx > 612) { //Right
+    vSpeed[0] = -1;
+  } else if(payload.lx < 412) { //Left
+    vSpeed[0] = 1;
+  } else {
+    vSpeed[0] = 0;
   }
 
-  inputArr[0] = inputs[0];
-  inputArr[1] = inputs[1];
-  inputArr[2] = inputs[2];
-  inputArr[3] = inputs[3];
-  inputArr[4] = inputs[4];
-  inputArr[5] = inputs[5];
-  inputArr[6] = inputs[6];
-  inputArr[7] = inputs[7];
-
-  
-  for(int i = 0; i < 8; i++){
-    Serial.print(inputArr[i]);
-    Serial.print(", ");
-  }
-  Serial.println();
-  
-  
-  // These sequence of inputs are read when button/ button combos are pressed
-  int F[8] = {1, 1, 0, 1, 1, 0, 1, 1};      // 1. forward
-  int B[8] = {1, 1, 1, 0, 0, 1, 1, 1};      // 2. back
-  int L[8] = {0, 1, 0, 1, 0, 1, 1, 1};      // 3. left
-  int R[8] = {1, 0, 1, 0, 1, 0, 1, 1};      // 4. right
-  int U[8] = {1, 1, 1, 1, 1, 1, 1, 0};      // 5. fork up
-  int D[8] = {1, 1, 1, 1, 1, 1, 0, 1};      // 6. fork down
-  int FL[8] = {0, 1, 0, 1, 1, 0, 1, 1};     // 7. forward + left
-  int FR[8] = {1, 0, 0, 1, 1, 0, 1, 1};     // 8. forward + right
-  int BL[8] = {0, 1, 1, 0, 0, 1, 1, 1};     // 9. back + left
-  int BR[8] = {1, 0, 1, 0, 0, 1, 1, 1};     // 10. back + right
-  int FU[8] = {1, 1, 0, 1, 1, 0, 1, 0};     // 11. forward + fork up
-  int FD[8] = {1, 1, 0, 1, 1, 0, 0, 1};     // 12. forward + fork down
-  int BU[8] = {1, 1, 1, 0, 0, 1, 1, 0};     // 13. back + fork up
-  int BD[8] = {1, 1, 1, 0, 0, 1, 0, 1};     // 14. back + fork down
-  int NONE[8] = {1, 1, 1, 1, 1, 1, 1, 1};   // 15. default, do nothing.
-
-
-
-  //create array that enumerates every command 
-  int cmdArr[15] = {0};
-
-  // We loop through all pin readings and compare the number of matches for each command. One of the commands will match all 8 pin outputs and that is what will get chosen as the transmitter's result. cmdArr ranks the match value.
-  // For example pressing the backwards button will generate a cmdArr =  {F = 0, B = 8, L = 4, R = 4, U = 4, D = 4, FL = 2, FR = 2, BL = 6, BR = 6, FU = 2, FD = 2, BU = 6, BD = 6, NONE = 4}. Thus backwards with a "match value" of 8 will be chosen.
-  for(int i = 0; i < 8; i++){
-    if(inputArr[i] == F[i]) cmdArr[0] += 1;
-    if(inputArr[i] == B[i]) cmdArr[1] += 1;
-    if(inputArr[i] == L[i]) cmdArr[2] += 1;
-    if(inputArr[i] == R[i]) cmdArr[3] += 1;
-    if(inputArr[i] == U[i]) cmdArr[4] += 1;
-    if(inputArr[i] == D[i]) cmdArr[5] += 1;
-    if(inputArr[i] == FL[i]) cmdArr[6] += 1;
-    if(inputArr[i] == FR[i]) cmdArr[7] += 1;
-    if(inputArr[i] == BL[i]) cmdArr[8] += 1;
-    if(inputArr[i] == BR[i]) cmdArr[9] += 1;
-    if(inputArr[i] == FU[i]) cmdArr[10] += 1;
-    if(inputArr[i] == FD[i]) cmdArr[11] += 1;
-    if(inputArr[i] == BU[i]) cmdArr[12] += 1;
-    if(inputArr[i] == BD[i]) cmdArr[13] += 1;
-    if(inputArr[i] == NONE[i]) cmdArr[14] += 1;
+  if(payload.ly > 612) { //Forward
+    vSpeed[1] = -1;
+  } else if(payload.ly < 412) { //Back
+    vSpeed[1] = 1;
+  } else {
+    vSpeed[1] = 0;
   }
 
-  for(int i = 0; i < 15; i++){
-    if(cmdArr[i] == 8){
-      command = i;
-      break;
-    }
-  }
-  
-  // Assign speed vector values based on chosen command
-  switch(command){
-    case 0: //Forward
-      vSpeed[0] = 0;
-      vSpeed[1] = -1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 1: //Back
-      vSpeed[0] = 0;
-      vSpeed[1] = 1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 2: //Rotate Left (CCW)
-      vSpeed[0] = 0;
-      vSpeed[1] = 0;
-      vSpeed[2] = -1;
-      moveFork = 0;
-      break;
-    case 3: //Rotate Right (CW)
-      vSpeed[0] = 0;
-      vSpeed[1] = 0;
-      vSpeed[2] = 1;
-      moveFork = 0;
-      break;
-    case 4: //Fork Up
-      vSpeed[0] = 0;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 1;
-      break;
-    case 5: //Fork Down
-      vSpeed[0] = 0;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = -1;
-      break;
-    case 6: //Forward + Left
-      vSpeed[0] = 1;
-      vSpeed[1] = -1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 7: //Forward + Right
-      vSpeed[0] = -1;
-      vSpeed[1] = -1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 8: //Back + Left
-      vSpeed[0] = 1;
-      vSpeed[1] = 1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 9: //Back + Right
-      vSpeed[0] = -1;
-      vSpeed[1] = 1;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    case 10: //Forward + Fork Up
-      vSpeed[0] = 0;
-      vSpeed[1] = -1;
-      vSpeed[2] = 0;
-      moveFork = 1;
-      break;
-    case 11:  //Forward + Fork Down
-      vSpeed[0] = 0;
-      vSpeed[1] = -1;
-      vSpeed[2] = 0;
-      moveFork = -1;
-      break;
-    case 12: //Back + Fork Up
-      vSpeed[0] = 0;
-      vSpeed[1] = 1;
-      vSpeed[2] = 0;
-      moveFork = 1;
-      break;
-    case 13: //Back + Fork Down
-      vSpeed[0] = 0;
-      vSpeed[1] = 1;
-      vSpeed[2] = 0;
-      moveFork = -1;
-      break;
-    case 14: //None
-      vSpeed[0] = 0;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 0;
-      break;
-    default:
-      break;
+  if(payload.rx > 612) { //Rotate Right (CW)
+    vSpeed[2] = 1;
+  } else if(payload.rx < 412) { //Rotate Left (CCW)
+    vSpeed[2] = -1;
+  } else {
+    vSpeed[2] = 0;
   }
 
-  //Serial.println(command);
-
-  // Add strafing / slide drive logic. Robot will strafe sideways (crabwalk) if left or right is pressed while the forward/back button is being held down. Users can the let go of forward/back after strafing has started and the slide drive behavior will persist.
-
-  // first lets check that our command history contains initalizing strafe.
-  bool initStrafe = false;
-
-  for(int i = 0; i < 4; i++){
-    // if command is 6, 7, 8, or 9
-    if(lastCommand[i] > 5 && lastCommand[i] < 9){
-      initStrafe = true;
-      break;
-    }
+  if(payload.ry > 612) { //Fork Up
+    moveFork = 1;
+  } else if(payload.ry < 412) { //Fork Down
+    moveFork = -1;
+  } else {
+    moveFork = 0;
   }
 
-  // If strafe is initalized, user can let go of forward/back
-  if(initStrafe == true || strafeMode == true){
-    if(command == 2){ // Left
-      strafeMode = true;
-      vSpeed[0] = -1;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 0;
-    } else if (command == 3){ // Right
-      strafeMode = true;
-      vSpeed[0] = 1;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 0;
-    } else {  // Other commands not related to strafe
-      // check if this is a signal glitch, "debounces" radio commands
-      if (lastCommand[0] == command && lastCommand[1] == command){
-        strafeMode = false;
-      } else {
-        // do nothing
-      }
-    }
+  if(payload.rb1) {
+    servo1.write((servo1.read() == SERVO_RESET) ? SERVO_DROP : SERVO_RESET);
   }
-  
-  // if strafemode is active, the left and right button will slide the robot instead of rotating it.
-  if(strafeMode){
-    if(command == 2){ // Left
-      vSpeed[0] = 1;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 0;
-    } else if (command == 3){ // Right
-      vSpeed[0] = -1;
-      vSpeed[1] = 0;
-      vSpeed[2] = 0;
-      moveFork = 0;
-    }
-  }
-  
-  /*Serial.print("X: ");
-  Serial.print(vSpeed[0]);
-  Serial.print(", Y: ");
-  Serial.print(vSpeed[1]);
-  Serial.print(", Omega: ");
-  Serial.print(vSpeed[2]);
-  Serial.print(". Fork Movement: ");
-  Serial.println(moveFork);*/
-  
-  // shift the command history array down an element... 
-  lastCommand[3] = lastCommand[2];
-  lastCommand[2] = lastCommand[1];
-  lastCommand[1] = lastCommand[0];
-  // and save this excecuted command for next iteration
-  lastCommand[0] = command;
 }
+
 
 // >>>>>>>>>>>>>>>>>>>>>>>> ROBOT ACTION FUNCTIONS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // prepare motors to coorinate bot movements

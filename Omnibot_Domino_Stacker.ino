@@ -30,15 +30,12 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 #define SERVO_PIN A2
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>> KEY ROBOT VARIABLES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-//RF Commands ----------------------------------------------------
-// remote command: drive vector (in velocities) {v_x, v_y, omega}
+// drive vector (in velocities) {v_x, v_y, omega}
 int vSpeed[3];
-// remote command: for forklift, -1 for lower, 0 for stay, 1 for move up
+// for forklift, -1 for lower, 0 for stay, 1 for move up
 int moveFork = 0;
-// stores the result of reciever message. 14 is default- dont move the motors.
-int lastCommand[4] = {14, 14, 14, 14};
-// robot will strafe when left/right is pressed and forward/back is held.
-bool strafeMode = false;
+// How fast the fastest motor will go. other motors will be scaled down accordingly
+int16_t fastestMotor = 255;
 
 //Robot Physical Parameters -------------------------------------
 double angleWheel1 = 90.0;
@@ -52,20 +49,14 @@ double localAngle = 60.0;
 double botRadius = 100.0;
 // Radius of omniwheel
 double wheelRadius = 35.0;
-
 // stores each calculated wheel speed for a given commanded vector {w1, w2, w3}.
 double wheelSpeeds[3];
-
 // tuning paratmeter to get linearized motor speed.
 double tune = 1; 
-
-// strafing timer variable for catching odd remote behavior
-unsigned long lastStrafe = 0;
 
 // receiver
 RF24 radio(CE_PIN, CSN_PIN); // CE, CSN
 // servo
-
 Servo servo1;
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SETUP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -98,20 +89,16 @@ void handleRadio() {
   if (!radio.available()) return; // only run the rest of the function if there is new data
   radio.read(&payload, sizeof(payload));
 
-  if(payload.lx > 612) { //Right
-    vSpeed[0] = -1;
-  } else if(payload.lx < 412) { //Left
-    vSpeed[0] = 1;
-  } else {
-    vSpeed[0] = 0;
-  }
+  vSpeed[0] = map(payload.lx, 0, 1023, 511, -512);
+  vSpeed[1] = map(payload.ly, 0, 1023, 511, -512);
 
-  if(payload.ly > 612) { //Forward
-    vSpeed[1] = -1;
-  } else if(payload.ly < 412) { //Back
-    vSpeed[1] = 1;
-  } else {
-    vSpeed[1] = 0;
+  int16_t radius = sqrt(vSpeed[0]*vSpeed[0] + vSpeed[1]+vSpeed[1]); // pythagorean theorem
+  if(radius < MIN_RADIUS) {
+    fastestMotor = 0;
+  }
+  else {
+    fastestMotor = map(radius, MIN_RADIUS, MAX_RADIUS, MIN_SPEED, MAX_SPEED);
+    fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
   }
 
   if(payload.rx > 612) { //Rotate Right (CW)
@@ -141,12 +128,12 @@ void handleRadio() {
 void moveBot(){
   float wheelSpeeds[3];
   getWheelSpeeds(wheelSpeeds);
-  driveWheels(wheelSpeeds, maxSpeed);
+  driveWheels(wheelSpeeds, fastestMotor);
   driveLift();
 }
 
 // Addresses motor controllers to drive wheels at caclulated speeds
-void driveWheels(float* speeds, float maxSpeed){  
+void driveWheels(float* speeds, float fastestMotor){  
   //drive all motors at calculated speeds
   float topWheelSpeed = max(max(abs(speeds[0]), abs(speeds[1])), abs(speeds[2]));
 
@@ -155,19 +142,19 @@ void driveWheels(float* speeds, float maxSpeed){
   wheelSpeeds[2] = speeds[2] / topWheelSpeed;
 
   if(speeds[0] < 0){
-    wheelSpeeds[0] = - pow(abs(wheelSpeeds[0]), tune) * maxSpeed;
+    wheelSpeeds[0] = - pow(abs(wheelSpeeds[0]), tune) * fastestMotor;
   } else {
-    wheelSpeeds[0] = pow(wheelSpeeds[0], tune) * maxSpeed;
+    wheelSpeeds[0] = pow(wheelSpeeds[0], tune) * fastestMotor;
   }
   if(speeds[1] < 0){
-    wheelSpeeds[1] = - pow(abs(wheelSpeeds[1]), tune) * maxSpeed;
+    wheelSpeeds[1] = - pow(abs(wheelSpeeds[1]), tune) * fastestMotor;
   } else {
-    wheelSpeeds[1] = pow(wheelSpeeds[1], tune) * maxSpeed;
+    wheelSpeeds[1] = pow(wheelSpeeds[1], tune) * fastestMotor;
   }
   if(speeds[2] < 0){
-    wheelSpeeds[2] = - pow(abs(wheelSpeeds[2]), tune) * maxSpeed;
+    wheelSpeeds[2] = - pow(abs(wheelSpeeds[2]), tune) * fastestMotor;
   } else {
-    wheelSpeeds[2] = pow(wheelSpeeds[2], tune) * maxSpeed;
+    wheelSpeeds[2] = pow(wheelSpeeds[2], tune) * fastestMotor;
   }
 
   if(flipM1){

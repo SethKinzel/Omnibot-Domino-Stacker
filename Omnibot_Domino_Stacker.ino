@@ -92,7 +92,13 @@ void handleRadio() {
   vSpeed[0] = map(payload.lx, 0, 1023, 511, -512);
   vSpeed[1] = map(payload.ly, 0, 1023, 511, -512);
 
-  int16_t radius = sqrt(vSpeed[0]*vSpeed[0] + vSpeed[1]+vSpeed[1]); // pythagorean theorem
+  int32_t x = vSpeed[0];
+  int32_t y = vSpeed[1];
+
+  int32_t radius = sqrt(x*x + y*y); // pythagorean theorem
+
+  Serial.print(F("radius = "));
+  Serial.print(radius);
   if(radius < MIN_RADIUS) {
     fastestMotor = 0;
   }
@@ -100,6 +106,13 @@ void handleRadio() {
     fastestMotor = map(radius, MIN_RADIUS, MAX_RADIUS, MIN_SPEED, MAX_SPEED);
     fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
   }
+
+  Serial.print(F(", fastestMotor = "));
+  Serial.print(fastestMotor);
+  Serial.print(F(", vSpeed[0] = "));
+  Serial.print(vSpeed[0]);
+  Serial.print(F(", vSpeed[1] = "));
+  Serial.println(vSpeed[1]);
 
   if(payload.rx > 612) { //Rotate Right (CW)
     vSpeed[2] = 1;

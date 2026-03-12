@@ -31,7 +31,7 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>> KEY ROBOT VARIABLES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // drive vector (in velocities) {v_x, v_y, omega}
-int vSpeed[3];
+float vSpeed[3];
 // for forklift, -1 for lower, 0 for stay, 1 for move up
 int moveFork = 0;
 // How fast the fastest motor will go. other motors will be scaled down accordingly
@@ -103,13 +103,16 @@ void handleRadio() {
     fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
   }
 
-  if(payload.rx > 612) { //Rotate Right (CW)
-    vSpeed[2] = 1;
-  } else if(payload.rx < 412) { //Rotate Left (CCW)
-    vSpeed[2] = -1;
-  } else {
-    vSpeed[2] = 0;
-  }
+  int rotate = payload.rx-512;
+  // if(abs(rotate) < 100) rotate = 0;
+  vSpeed[2] = rotate / 200;
+  // if(payload.rx > 612) { //Rotate Right (CW)
+  //   vSpeed[2] = 1;
+  // } else if(payload.rx < 412) { //Rotate Left (CCW)
+  //   vSpeed[2] = -1;
+  // } else {
+  //   vSpeed[2] = 0;
+  // }
 
   if(payload.ry > 612) { //Fork Up
     moveFork = 1;

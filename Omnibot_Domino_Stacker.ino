@@ -1,4 +1,5 @@
 
+
 /*
 Huge thanks to those who have derived the kinematic conrrols for omni-directional robots. This hackpack comes with an optional educational reading that I highly reccomend: (Siradjuddin, Indrazno. "Kinematics and control a three wheeled omnidirectional mobile robot." Int. J. Electr. Electron. Eng 6.12 (2019): 1-6.) [https://www.internationaljournalssrg.org/IJEEE/2019/Volume6-Issue12/IJEEE-V6I12P101.pdf] 
 
@@ -13,6 +14,7 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 #include <nRF24L01.h>
 #include <SK_RC_Payload.h>
 #include <Servo.h>
+#include <MapFloat.h>
 
 #define M1_DIR 7
 #define M1_PWM 6
@@ -29,9 +31,15 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 
 #define SERVO_PIN A2
 
+#define SIN60 0.86602540378443864676372317075294
+
 //>>>>>>>>>>>>>>>>>>>>>>>>>> KEY ROBOT VARIABLES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // drive vector (in velocities) {v_x, v_y, omega}
-float vSpeed[3];
+struct VECTOR {
+  float x, y, o;
+};
+
+VECTOR vSpeed;
 // for forklift, -1 for lower, 0 for stay, 1 for move up
 int moveFork = 0;
 // How fast the fastest motor will go. other motors will be scaled down accordingly
@@ -88,35 +96,46 @@ void loop() {
 void handleRadio() {
   if (!radio.available()) return; // only run the rest of the function if there is new data
   radio.read(&payload, sizeof(payload));
-    //set x and y vectors
-  vSpeed[0] = map(payload.lx, 0, 1023, 511, -512);
-  vSpeed[1] = map(payload.ly, 0, 1023, 511, -512);
-    //set speed
-  int32_t x = vSpeed[0];
-  int32_t y = vSpeed[1];
-  int32_t radius = sqrt(x*x + y*y); // pythagorean theorem
-  if(radius < MIN_RADIUS) {
-    fastestMotor = 0;
+
+  //set x and y vectors
+  int32_t x = payload.lx - 512;
+  if (abs(x) < joystickCenterThreshold) x = 0;
+  int32_t y = payload.ly - 512;
+  if (abs(y) < joystickCenterThreshold) y = 0;
+  int o = payload.rx - 512;
+  if (abs(o) < joystickCenterThreshold) o = 0;
+
+  vSpeed.x = mapFloat(x, -512, 511, 1, -1);
+  vSpeed.y = mapFloat(y, -512, 511, 1, -1);
+  vSpeed.o = mapFloat(o, -512, 511, -1, 1);
+
+  if (x != 0 || y != 0 || o != 0) {
+    fastestMotor = 255;
   }
   else {
-    fastestMotor = map(radius, MIN_RADIUS, MAX_RADIUS, MIN_SPEED, MAX_SPEED);
-    fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
+    fastestMotor = 0;
   }
-
-  int rotate = payload.rx-512;
-  // if(abs(rotate) < 100) rotate = 0;
-  vSpeed[2] = rotate / 200;
-  // if(payload.rx > 612) { //Rotate Right (CW)
-  //   vSpeed[2] = 1;
-  // } else if(payload.rx < 412) { //Rotate Left (CCW)
-  //   vSpeed[2] = -1;
-  // } else {
-  //   vSpeed[2] = 0;
+  // int32_t radius = sqrt(x*x + y*y); // pythagorean theorem
+  // if(radius < MIN_RADIUS) {
+  //   fastestMotor = 0;
+  // }
+  // else {
+  //   // fastestMotor = map(radius, MIN_RADIUS, MAX_RADIUS, MIN_SPEED, MAX_SPEED);
+  //   // fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
   // }
 
-  if(payload.ry > 612) { //Fork Up
+  // if(abs(rotate) < 100) rotate = 0;
+  // if(payload.rx > 612) { //Rotate Right (CW)
+  //   vSpeed.o = 1;
+  // } else if(payload.rx < 412) { //Rotate Left (CCW)
+  //   vSpeed.o = -1;
+  // } else {
+  //   vSpeed.o = 0;
+  // }
+
+  if(payload.ry > 512 + joystickCenterThreshold) { //Fork Up
     moveFork = 1;
-  } else if(payload.ry < 412) { //Fork Down
+  } else if(payload.ry < 512 - joystickCenterThreshold) { //Fork Down
     moveFork = -1;
   } else {
     moveFork = 0;
@@ -146,21 +165,26 @@ void driveWheels(float* speeds, float fastestMotor){
   wheelSpeeds[1] = speeds[1] / topWheelSpeed; 
   wheelSpeeds[2] = speeds[2] / topWheelSpeed;
 
-  if(speeds[0] < 0){
-    wheelSpeeds[0] = - pow(abs(wheelSpeeds[0]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[0] = pow(wheelSpeeds[0], tune) * fastestMotor;
-  }
-  if(speeds[1] < 0){
-    wheelSpeeds[1] = - pow(abs(wheelSpeeds[1]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[1] = pow(wheelSpeeds[1], tune) * fastestMotor;
-  }
-  if(speeds[2] < 0){
-    wheelSpeeds[2] = - pow(abs(wheelSpeeds[2]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[2] = pow(wheelSpeeds[2], tune) * fastestMotor;
-  }
+  wheelSpeeds[0] = wheelSpeeds[0] * fastestMotor;
+  wheelSpeeds[1] = wheelSpeeds[1] * fastestMotor; 
+  wheelSpeeds[2] = wheelSpeeds[2] * fastestMotor;
+
+
+  // if(speeds[0] < 0){
+  //   wheelSpeeds[0] = - pow(abs(wheelSpeeds[0]), tune) * fastestMotor;
+  // } else {
+  //   wheelSpeeds[0] = pow(wheelSpeeds[0], tune) * fastestMotor;
+  // }
+  // if(speeds[1] < 0){
+  //   wheelSpeeds[1] = - pow(abs(wheelSpeeds[1]), tune) * fastestMotor;
+  // } else {
+  //   wheelSpeeds[1] = pow(wheelSpeeds[1], tune) * fastestMotor;
+  // }
+  // if(speeds[2] < 0){
+  //   wheelSpeeds[2] = - pow(abs(wheelSpeeds[2]), tune) * fastestMotor;
+  // } else {
+  //   wheelSpeeds[2] = pow(wheelSpeeds[2], tune) * fastestMotor;
+  // }
 
   if(flipM1){
      wheelSpeeds[0] = - wheelSpeeds[0];
@@ -227,14 +251,21 @@ void driveLift(){
 // >>>>>>>>>>>>>>>>>>>>>>>>>> INVERSE KINEMATICS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // calculates speed of each wheel based of commanded speed vector. Forumlas are in the linked reading!
 void getWheelSpeeds(float* wheelList) {
-  double botAngle = localAngle; //+ gyroAngle;
+  // double botAngle = localAngle; //+ gyroAngle;
 
-  // 0.0174533 converts deg to rad 
-  wheelList[0] = (-sin((botAngle + angleWheel1) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel1) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2]) / wheelRadius;
+  // // 0.0174533 converts deg to rad 
+  // wheelList[0] = (-sin((botAngle + angleWheel1) * 0.0174533) 
+  //               * cos(botAngle * 0.0174533) * vSpeed.x + cos((botAngle + angleWheel1) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed.y + botRadius * vSpeed.o) / wheelRadius;
   
-  wheelList[1] = (-sin((botAngle + angleWheel2) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel2) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2])/ wheelRadius;
-  wheelList[2] = (-sin((botAngle + angleWheel3) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel3) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2])/ wheelRadius;         
+  // wheelList[1] = (-sin((botAngle + angleWheel2) * 0.0174533) 
+  //               * cos(botAngle * 0.0174533) * vSpeed.x + cos((botAngle + angleWheel2) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed.y + botRadius * vSpeed.o)/ wheelRadius;
+  // wheelList[2] = (-sin((botAngle + angleWheel3) * 0.0174533) 
+  //               * cos(botAngle * 0.0174533) * vSpeed.x + cos((botAngle + angleWheel3) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed.y + botRadius * vSpeed.o)/ wheelRadius;         
+
+
+
+wheelList[2] = -0.5 * vSpeed.x + SIN60 * vSpeed.y + vSpeed.o;
+wheelList[0] = -0.5 * vSpeed.x - SIN60 * vSpeed.y + vSpeed.o;
+wheelList[1] =  1.0 * vSpeed.x + vSpeed.o;
+
 }

@@ -1,4 +1,5 @@
 
+
 /*
 Huge thanks to those who have derived the kinematic conrrols for omni-directional robots. This hackpack comes with an optional educational reading that I highly reccomend: (Siradjuddin, Indrazno. "Kinematics and control a three wheeled omnidirectional mobile robot." Int. J. Electr. Electron. Eng 6.12 (2019): 1-6.) [https://www.internationaljournalssrg.org/IJEEE/2019/Volume6-Issue12/IJEEE-V6I12P101.pdf] 
 
@@ -13,6 +14,7 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 #include <nRF24L01.h>
 #include <SK_RC_Payload.h>
 #include <Servo.h>
+#include <MapFloat.h>
 
 #define M1_DIR 7
 #define M1_PWM 6
@@ -29,30 +31,20 @@ Combining this with a gyroscope allows for a true field oriented drive-- where  
 
 #define SERVO_PIN A2
 
+#define SIN60 0.86602540378443864676372317075294
+
 //>>>>>>>>>>>>>>>>>>>>>>>>>> KEY ROBOT VARIABLES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // drive vector (in velocities) {v_x, v_y, omega}
-int vSpeed[3];
+struct VECTOR {
+  float x, y, o;
+};
+
+VECTOR vSpeed;
 // for forklift, -1 for lower, 0 for stay, 1 for move up
 int moveFork = 0;
-// How fast the fastest motor will go. other motors will be scaled down accordingly
-int16_t fastestMotor = 255;
 
-//Robot Physical Parameters -------------------------------------
-double angleWheel1 = 90.0;
-double angleWheel2 = 210.0;
-double angleWheel3 = 330.0;
-
-// Equation puts wheel 1 facing forwards. This rotates the robot's "front" ccw.
-double localAngle = 60.0;
-//double gyroAngle;
-// Radius of wheel center to robot center
-double botRadius = 100.0;
-// Radius of omniwheel
-double wheelRadius = 35.0;
 // stores each calculated wheel speed for a given commanded vector {w1, w2, w3}.
-double wheelSpeeds[3];
-// tuning paratmeter to get linearized motor speed.
-double tune = 1; 
+float wheelSpeeds[3];
 
 // receiver
 RF24 radio(CE_PIN, CSN_PIN); // CE, CSN
@@ -88,32 +80,27 @@ void loop() {
 void handleRadio() {
   if (!radio.available()) return; // only run the rest of the function if there is new data
   radio.read(&payload, sizeof(payload));
-    //set x and y vectors
-  vSpeed[0] = map(payload.lx, 0, 1023, 511, -512);
-  vSpeed[1] = map(payload.ly, 0, 1023, 511, -512);
-    //set speed
-  int32_t x = vSpeed[0];
-  int32_t y = vSpeed[1];
+
+  //set x, y, and omega vectors
+  int32_t x = payload.lx - 512; // needs int32 for radius calculation
+  int32_t y = payload.ly - 512;
   int32_t radius = sqrt(x*x + y*y); // pythagorean theorem
-  if(radius < MIN_RADIUS) {
-    fastestMotor = 0;
+  if (abs(radius < joystickCenterThreshold)) {
+    x = 0;
+    y = 0;
   }
-  else {
-    fastestMotor = map(radius, MIN_RADIUS, MAX_RADIUS, MIN_SPEED, MAX_SPEED);
-    fastestMotor = constrain(fastestMotor, MIN_SPEED, MAX_SPEED);
-  }
+  int o = payload.rx - 512;
+  if (abs(o) < joystickCenterThreshold) o = 0;
 
-  if(payload.rx > 612) { //Rotate Right (CW)
-    vSpeed[2] = 1;
-  } else if(payload.rx < 412) { //Rotate Left (CCW)
-    vSpeed[2] = -1;
-  } else {
-    vSpeed[2] = 0;
-  }
+  const int xyScaling = 430;
+  const int oScaling = 500;
+  vSpeed.x = mapFloat(x, -xyScaling, xyScaling, 1, -1);
+  vSpeed.y = mapFloat(y, -xyScaling, xyScaling, 1, -1);
+  vSpeed.o = mapFloat(o, -oScaling, oScaling, -1, 1);
 
-  if(payload.ry > 612) { //Fork Up
+  if(payload.ry > 512 + joystickCenterThreshold) { //Fork Up
     moveFork = 1;
-  } else if(payload.ry < 412) { //Fork Down
+  } else if(payload.ry < 512 - joystickCenterThreshold) { //Fork Down
     moveFork = -1;
   } else {
     moveFork = 0;
@@ -128,68 +115,56 @@ void handleRadio() {
 // >>>>>>>>>>>>>>>>>>>>>>>> ROBOT ACTION FUNCTIONS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // prepare motors to coorinate bot movements
 void moveBot(){
-  float wheelSpeeds[3];
-  getWheelSpeeds(wheelSpeeds);
-  driveWheels(wheelSpeeds, fastestMotor);
+  getWheelSpeeds();
+  driveWheels();
   driveLift();
 }
 
+// >>>>>>>>>>>>>>>>>>>>>>>>>> INVERSE KINEMATICS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// calculates speed of each wheel based of commanded speed vector. Forumlas are in the linked reading!
+void getWheelSpeeds() {
+  wheelSpeeds[2] = -0.5 * vSpeed.x + SIN60 * vSpeed.y + vSpeed.o;
+  wheelSpeeds[0] = -0.5 * vSpeed.x - SIN60 * vSpeed.y + vSpeed.o;
+  wheelSpeeds[1] =  1.0 * vSpeed.x + vSpeed.o;
+}
+
 // Addresses motor controllers to drive wheels at caclulated speeds
-void driveWheels(float* speeds, float fastestMotor){  
-  //drive all motors at calculated speeds
-  float topWheelSpeed = max(max(abs(speeds[0]), abs(speeds[1])), abs(speeds[2]));
+void driveWheels(){  
+  // drive all motors at calculated speeds
+  float topWheelSpeed = max(max(abs(wheelSpeeds[0]), abs(wheelSpeeds[1])), abs(wheelSpeeds[2]));
+  int16_t intSpeeds[3];
 
-  wheelSpeeds[0] = speeds[0] / topWheelSpeed;
-  wheelSpeeds[1] = speeds[1] / topWheelSpeed; 
-  wheelSpeeds[2] = speeds[2] / topWheelSpeed;
-
-  if(speeds[0] < 0){
-    wheelSpeeds[0] = - pow(abs(wheelSpeeds[0]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[0] = pow(wheelSpeeds[0], tune) * fastestMotor;
-  }
-  if(speeds[1] < 0){
-    wheelSpeeds[1] = - pow(abs(wheelSpeeds[1]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[1] = pow(wheelSpeeds[1], tune) * fastestMotor;
-  }
-  if(speeds[2] < 0){
-    wheelSpeeds[2] = - pow(abs(wheelSpeeds[2]), tune) * fastestMotor;
-  } else {
-    wheelSpeeds[2] = pow(wheelSpeeds[2], tune) * fastestMotor;
+  for(int8_t i = 0; i < 3; i++) {
+    if (topWheelSpeed > 1) {
+      wheelSpeeds[i] = wheelSpeeds[i] / topWheelSpeed;
+    }
+    wheelSpeeds[i] = mapFloat(wheelSpeeds[i], -1, 1, -255, 255);
+    intSpeeds[i] = constrain(wheelSpeeds[i], -255, 255);
+    if((flipM1 && i == 0) || (flipM2 && i == 1) || (flipM3 && i == 2)) {
+      intSpeeds[i] = - intSpeeds[i];
+    }
   }
 
-  if(flipM1){
-     wheelSpeeds[0] = - wheelSpeeds[0];
-  }
-  if(flipM2){
-     wheelSpeeds[1] = - wheelSpeeds[1];
-  }
-  if(flipM3){
-     wheelSpeeds[2] = - wheelSpeeds[2];
-  }
-  
-
-  if(wheelSpeeds[0] < 0){
+  if(intSpeeds[0] < 0){
     digitalWrite(M1_DIR, LOW);
   } else {
     digitalWrite(M1_DIR, HIGH);
   }
-  analogWrite(M1_PWM, int(abs(wheelSpeeds[0])));
+  analogWrite(M1_PWM, abs(intSpeeds[0]));
 
-  if(wheelSpeeds[1] < 0){
+  if(intSpeeds[1] < 0){
     digitalWrite(M2_DIR, LOW);
   } else {
     digitalWrite(M2_DIR, HIGH);
   }
-  analogWrite(M2_PWM, int(abs(wheelSpeeds[1])));
+  analogWrite(M2_PWM, abs(intSpeeds[1]));
 
-  if(wheelSpeeds[2] < 0){
+  if(intSpeeds[2] < 0){
     digitalWrite(M3_DIR, LOW);
   } else {
     digitalWrite(M3_DIR, HIGH);
   }
-  analogWrite(M3_PWM, int(abs(wheelSpeeds[2])));
+  analogWrite(M3_PWM, abs(intSpeeds[2]));
 }
 
 // Moves lift motor. full forward, full back, or stopped.
@@ -219,19 +194,3 @@ void driveLift(){
   }
 }
 
-
-
-// >>>>>>>>>>>>>>>>>>>>>>>>>> INVERSE KINEMATICS <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// calculates speed of each wheel based of commanded speed vector. Forumlas are in the linked reading!
-void getWheelSpeeds(float* wheelList) {
-  double botAngle = localAngle; //+ gyroAngle;
-
-  // 0.0174533 converts deg to rad 
-  wheelList[0] = (-sin((botAngle + angleWheel1) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel1) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2]) / wheelRadius;
-  
-  wheelList[1] = (-sin((botAngle + angleWheel2) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel2) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2])/ wheelRadius;
-  wheelList[2] = (-sin((botAngle + angleWheel3) * 0.0174533) 
-                * cos(botAngle * 0.0174533) * vSpeed[0] + cos((botAngle + angleWheel3) * 0.0174533) * cos(botAngle * 0.0174533) * vSpeed[1] + botRadius * vSpeed[2])/ wheelRadius;         
-}

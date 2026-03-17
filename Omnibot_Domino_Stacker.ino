@@ -42,8 +42,6 @@ struct VECTOR {
 VECTOR vSpeed;
 // for forklift, -1 for lower, 0 for stay, 1 for move up
 int moveFork = 0;
-// How fast the fastest motor will go. other motors will be scaled down accordingly
-int16_t fastestMotor = 255;
 
 // stores each calculated wheel speed for a given commanded vector {w1, w2, w3}.
 float wheelSpeeds[3];
@@ -84,23 +82,21 @@ void handleRadio() {
   radio.read(&payload, sizeof(payload));
 
   //set x, y, and omega vectors
-  int32_t x = payload.lx - 512;
-  if (abs(x) < joystickCenterThreshold) x = 0;
+  int32_t x = payload.lx - 512; // needs int32 for radius calculation
   int32_t y = payload.ly - 512;
-  if (abs(y) < joystickCenterThreshold) y = 0;
+  int32_t radius = sqrt(x*x + y*y); // pythagorean theorem
+  if (abs(radius < joystickCenterThreshold)) {
+    x = 0;
+    y = 0;
+  }
   int o = payload.rx - 512;
   if (abs(o) < joystickCenterThreshold) o = 0;
 
-  vSpeed.x = mapFloat(x, -512, 511, 1, -1);
-  vSpeed.y = mapFloat(y, -512, 511, 1, -1);
-  vSpeed.o = mapFloat(o, -512, 511, -1, 1);
-
-  if (x != 0 || y != 0 || o != 0) {
-    fastestMotor = 255;
-  }
-  else {
-    fastestMotor = 0;
-  }
+  const int xyScaling = 430;
+  const int oScaling = 500;
+  vSpeed.x = mapFloat(x, -xyScaling, xyScaling, 1, -1);
+  vSpeed.y = mapFloat(y, -xyScaling, xyScaling, 1, -1);
+  vSpeed.o = mapFloat(o, -oScaling, oScaling, -1, 1);
 
   if(payload.ry > 512 + joystickCenterThreshold) { //Fork Up
     moveFork = 1;
@@ -134,48 +130,41 @@ void getWheelSpeeds() {
 
 // Addresses motor controllers to drive wheels at caclulated speeds
 void driveWheels(){  
-  //drive all motors at calculated speeds
-  float topWheelSpeed = max(max(abs(speeds[0]), abs(speeds[1])), abs(speeds[2]));
+  // drive all motors at calculated speeds
+  float topWheelSpeed = max(max(abs(wheelSpeeds[0]), abs(wheelSpeeds[1])), abs(wheelSpeeds[2]));
+  int16_t intSpeeds[3];
 
-  wheelSpeeds[0] = wheelSpeeds[0] / topWheelSpeed;
-  wheelSpeeds[1] = wheelSpeeds[1] / topWheelSpeed; 
-  wheelSpeeds[2] = wheelSpeeds[2] / topWheelSpeed;
-
-  wheelSpeeds[0] = wheelSpeeds[0] * fastestMotor;
-  wheelSpeeds[1] = wheelSpeeds[1] * fastestMotor; 
-  wheelSpeeds[2] = wheelSpeeds[2] * fastestMotor;
-
-  if(flipM1){
-     wheelSpeeds[0] = - wheelSpeeds[0];
+  for(int8_t i = 0; i < 3; i++) {
+    if (topWheelSpeed > 1) {
+      wheelSpeeds[i] = wheelSpeeds[i] / topWheelSpeed;
+    }
+    wheelSpeeds[i] = mapFloat(wheelSpeeds[i], -1, 1, -255, 255);
+    intSpeeds[i] = constrain(wheelSpeeds[i], -255, 255);
+    if((flipM1 && i == 0) || (flipM2 && i == 1) || (flipM3 && i == 2)) {
+      intSpeeds[i] = - intSpeeds[i];
+    }
   }
-  if(flipM2){
-     wheelSpeeds[1] = - wheelSpeeds[1];
-  }
-  if(flipM3){
-     wheelSpeeds[2] = - wheelSpeeds[2];
-  }
-  
 
-  if(wheelSpeeds[0] < 0){
+  if(intSpeeds[0] < 0){
     digitalWrite(M1_DIR, LOW);
   } else {
     digitalWrite(M1_DIR, HIGH);
   }
-  analogWrite(M1_PWM, int(abs(wheelSpeeds[0])));
+  analogWrite(M1_PWM, abs(intSpeeds[0]));
 
-  if(wheelSpeeds[1] < 0){
+  if(intSpeeds[1] < 0){
     digitalWrite(M2_DIR, LOW);
   } else {
     digitalWrite(M2_DIR, HIGH);
   }
-  analogWrite(M2_PWM, int(abs(wheelSpeeds[1])));
+  analogWrite(M2_PWM, abs(intSpeeds[1]));
 
-  if(wheelSpeeds[2] < 0){
+  if(intSpeeds[2] < 0){
     digitalWrite(M3_DIR, LOW);
   } else {
     digitalWrite(M3_DIR, HIGH);
   }
-  analogWrite(M3_PWM, int(abs(wheelSpeeds[2])));
+  analogWrite(M3_PWM, abs(intSpeeds[2]));
 }
 
 // Moves lift motor. full forward, full back, or stopped.

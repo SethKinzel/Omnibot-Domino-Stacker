@@ -8,7 +8,7 @@ It uses an arduino and two joysticks as the remote control to allow for variable
 #include <SPI.h>
 #include <RF24.h>
 #include <nRF24L01.h>
-#include <SK_RC_Payload.h>
+#include "RC_Payload.h"
 #include <Servo.h>
 #include <MapFloat.h>
 

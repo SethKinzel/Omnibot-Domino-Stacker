@@ -3,12 +3,11 @@
 #include <SPI.h>
 #include <RF24.h>
 #include <nRF24L01.h>
-#include <Wire.h>
-#include <hd44780.h>                        // main hd44780 header
-#include <hd44780ioClass/hd44780_I2Cexp.h>  // i2c expander i/o class header
+
 #include <OneButton.h>
 #include "RC_Payload.h"
 #include "OmniRemote_Config.h"
+
 
 #pragma region SERIAL FUNCTIONS
 
@@ -38,13 +37,13 @@
     Serial.println();
   }
 
-void printWithSpaces(int16_t val, int16_t spaces) {
-  String str = String(val);
-  for (int16_t i = str.length(); i < spaces; i++) {
-    Serial.print(" ");
+  void printWithSpaces(int16_t val, int16_t spaces) {
+    String str = String(val);
+    for (int16_t i = str.length(); i < spaces; i++) {
+      Serial.print(" ");
+    }
+    Serial.print(str);
   }
-  Serial.print(str);
-}
 
 #else
   #define SERIAL_PRINT(x)
@@ -55,6 +54,25 @@ void printWithSpaces(int16_t val, int16_t spaces) {
 #endif
 
 #pragma endregion SERIAL FUNCTIONS
+
+#pragma region LCD_FUNCTIONS
+
+#define USE_LCD 0 // 1 or 0 to tell whether or not to use a lcd
+
+#if USE_LCD
+  #include <Wire.h>
+  #include <hd44780.h>                        // main hd44780 header
+  #include <hd44780ioClass/hd44780_I2Cexp.h>  // i2c expander i/o class header
+  hd44780_I2Cexp lcd; // declare lcd object: auto locate & auto config expander chip
+  #define LCD_PRINT(x)     lcd.print(x)
+  #define LCD_BEGIN(x, y)  lcd.begin(x, y)
+#else
+  #define LCD_PRINT(x)
+  #define LCD_BEGIN(x, y)
+#endif
+
+
+#pragma endregion LCD_FUNCTIONS
 
 #pragma region LedDisplayClass
 #ifdef USELEDS
@@ -149,15 +167,13 @@ LedDisplay display;  // Create an instance of the LedDisplay class that controls
 OneButton leftButton1;
 OneButton rightButton1;
 
-hd44780_I2Cexp lcd; // declare lcd object: auto locate & auto config expander chip
-
 RF24 radio(CE_PIN, CSN_PIN); // CE, CSN
 
 
 void setup() {
   SERIAL_BEGIN(115200);
-  lcd.begin(16, 2);
-  lcd.print("Remote Control");
+  LCD_BEGIN(16, 2);
+  LCD_PRINT("Remote Control");
   
   radio.begin();
   radio.setPALevel(RF24_PA_MIN);

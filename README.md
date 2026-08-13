@@ -68,14 +68,93 @@ The project uses the following Arduino libraries:
 
 ### 1. Assemble the Omnibot modification
 
-Install the 3D-printed parts and servo onto the Omnibot Forklift according to the build instructions.
+## Rewiring the Omnibot
 
-> **Build instructions and 3D-print files:**
-> Add links to the relevant STL files and assembly instructions here.
+### Step 1 – Remove Parts for Installation and Rewiring
+
+Start by removing the parts of the Omnibot that need to be taken off to install the new **lift/domino stacker assembly**.
+
+Removing these parts also gives you better access to the electronics and wiring, which you will need for the rewiring steps that follow.
+
+![Omnibot disassembled](docs/Disassembled.jpg)
+
+### Step 2 – Swap the ribbon cables
+The Domino Stacker uses a servo, which occupies one of the Arduino's hardware timer outputs. The stock Omnibot wiring uses PWM on pin 9, which conflicts with the servo.
+
+To avoid changing the existing ribbon cables, the motor assignments are rearranged so that the three drive motors use PWM-capable pins while the lift motor (which only needs full-speed up/down movement) uses the remaining output.
+
+
+The Omnibot has two ribbon cables connecting the Arduino board to the motor driver boards.
+
+**Swap the two ribbon cables on the motor driver boards only.**
+
+> **Important:** Leave the Arduino ends plugged in exactly as they are. Only unplug and swap the ends connected to the two motor driver boards.
+
+![Switching the ribbon cables](docs/RibbonCables01.jpg)
+![Switching the ribbon cables](docs/RibbonCables02.jpg)
+
+
+### Step 3 – Swap two motor cables
+
+On the **left motor driver board**, swap these two cables:
+
+* Yellow cable from **Motor 1**
+* Gray cable from the **Lift Motor**
+
+After swapping them, the motor connections should match the new pin assignments used by the software.
+
+![Switching the motor cables](docs/MotorCables.jpg)
+
+### Step 4 – Add the Receiver and Servo
+
+Once the rewiring is complete, add the **receiver** and the **servo** according to the wiring diagram.
+
+Make sure all connections match the diagram before powering on the robot.
+
+
+
+#### ⚠️ Warning – NRF24L01 Power
+
+The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V**.
+
+I connected both the transceiver and capacitor to the 3.3V pin on the Arduino using a simple Y-shaped wire made by soldering **one male wire to two female wires**.
+
+![Robot wiring diagram](docs/robot_wiring.jpg)
+
+### Step 5 - Install the 3D-printed parts
+
+Print the following files from the `3D` folder:
+* Main Body.stl
+* Slider.stl
+* `DOMNO_Servo_Horn.stl` from the line following domino robot (2nd hackpack). I have included it here.
+* Domino.stl  
+I had success printing these standing upright with a small brim, but there might be other ways to do it.
+Do a few small batches first, and make sure that they stand up and don't get caught.
+Be sure to use enough elephant foot compensation.  
+The robot takes 70 dominoes, but it might be good to have a few extra.
+
+* (optional) Magazine.stl  
+Allows the robot to stack multiple tiles of dominoes without reloading.  
+You can stack multiple magazines on top of each other, until it gets too heavy.  
+Print upside down, and be sure to block support from the holes in the four corners.
+
+* (optional) folder `3D/Different size dominoes`
+![Different size dominoes](docs/DifferentSizeDominoes.jpg)
+
+Assemble as shown:
+![How to assemble](docs/FrontAssembly.jpg)
+
+If using the magazine, put the side with the narrow border towards the robot
+
+![How to install magazine](docs/FrontAssembly2.jpg)
 
 ### 2. Build the remote controller
 
 Follow the wiring diagram:
+
+#### ⚠️ Warning – NRF24L01 Power
+
+The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V**.
 
 ![Remote control wiring diagram](docs/transmitter_wiring.jpg)
 
@@ -93,29 +172,13 @@ Turn on the Omnibot and remote controller. The NRF24L01 modules should establish
 
 ## Controls
 
-> **TODO:** Add a description of the joystick controls here.
+| Control                   | Function                            |
+| ------------------------- | ----------------------------------- |
+| Left joystick             | Movement                            |
+| Right joystick left/right | Rotation                            |
+| Right joystick up/down    | Raise/lower dominoes                |
+| Right joystick button     | Drop dominoes / reset domino holder |
 
-For example:
-
-| Control                   | Function                          |
-| ------------------------- | --------------------------------- |
-| Left joystick             | Movement                          |
-| Right joystick left/right | Rotation                          |
-| Right joystick up/down    | raise/lower dominoes              |
-| Right joystick button     | Drop Dominoes/reset domino holder |
-
-## 3D-Printed Parts
-
-The project requires access to a 3D printer for the custom parts used by the domino-stacking mechanism.
-
-> **TODO:** Add STL files and links to the individual parts here.
-
-Recommended information for each part:
-
-* Part name
-* Quantity required
-* Recommended print settings
-* Any hardware required for assembly
 
 ## NRF24L01 Information
 
@@ -133,7 +196,7 @@ The following components are **completely optional** and are disabled by default
 
 ### LCD
 
-I had an i2c LCD (from the label maker hack pack) already attached to the Arduino I used for the remote control, so I added support for it. It simply displays **"Remote Control"**.
+I had an I2C LCD (from the label maker Hack Pack) already attached to the Arduino I used for the remote control, so I added support for it. It simply displays **"Remote Control"**.
 
 You do not need an LCD to use the project.
 
@@ -154,7 +217,7 @@ If you are not using an LCD, you **do not need to install the hd44780 library**.
 
 ### LED Strip
 
-There is also an optional LED strip (taken from the sand garden hack pack) that displays a simple color pattern. The LEDs are purely decorative and are not required for controlling the robot.
+There is also an optional LED strip (taken from the sand garden Hack Pack) that displays a simple color pattern. The LEDs are purely decorative and are not required for controlling the robot.
 
 LED support can be enabled by uncommenting this line in `OmniRemote_Config.h`:
 
@@ -183,7 +246,3 @@ The repository contains the hardware modifications, Arduino code, and 3D-printed
 * **Matthias Hertel** – OneButton library
 * **Bill Perry** – hd44780 library
 * **Seth Kinzel** – EasyJoystick library
-
-## License
-
-> **TODO:** Add the license for the code and 3D-print files here.

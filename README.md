@@ -45,6 +45,11 @@ The decoupling capacitors are used to help provide stable power to the NRF24L01 
 
 [100 µF Electrolytic Capacitors – SparkFun](https://www.sparkfun.com/electrolytic-decoupling-capacitors-100uf-25v.html)
 
+This tutorial provides additional information about using the NRF24L01 with Arduino:
+
+[NRF24L01 Arduino Wireless Communication Tutorial](https://www.instructables.com/NRF24L01-Tutorial-Arduino-Wireless-Communication/)
+
+
 ## Arduino Libraries
 
 The project uses the following Arduino libraries:
@@ -66,11 +71,7 @@ The project uses the following Arduino libraries:
 
 ## Getting Started
 
-### 1. Assemble the Omnibot modification
-
-## Rewiring the Omnibot
-
-### Step 1 – Remove Parts for Installation and Rewiring
+### 1. Remove Parts for Installation and Rewiring
 
 Start by removing the parts of the Omnibot that need to be taken off to install the new **lift/domino stacker assembly**.
 
@@ -78,50 +79,7 @@ Removing these parts also gives you better access to the electronics and wiring,
 
 ![Omnibot disassembled](docs/Disassembled.jpg)
 
-### Step 2 – Swap the ribbon cables
-The Domino Stacker uses a servo, which occupies one of the Arduino's hardware timer outputs. The stock Omnibot wiring uses PWM on pin 9, which conflicts with the servo.
-
-To avoid changing the existing ribbon cables, the motor assignments are rearranged so that the three drive motors use PWM-capable pins while the lift motor (which only needs full-speed up/down movement) uses the remaining output.
-
-
-The Omnibot has two ribbon cables connecting the Arduino board to the motor driver boards.
-
-**Swap the two ribbon cables on the motor driver boards only.**
-
-> **Important:** Leave the Arduino ends plugged in exactly as they are. Only unplug and swap the ends connected to the two motor driver boards.
-
-![Switching the ribbon cables](docs/RibbonCables01.jpg)
-![Switching the ribbon cables](docs/RibbonCables02.jpg)
-
-
-### Step 3 – Swap two motor cables
-
-On the **left motor driver board**, swap these two cables:
-
-* Yellow cable from **Motor 1**
-* Gray cable from the **Lift Motor**
-
-After swapping them, the motor connections should match the new pin assignments used by the software.
-
-![Switching the motor cables](docs/MotorCables.jpg)
-
-### Step 4 – Add the Receiver and Servo
-
-Once the rewiring is complete, add the **receiver** and the **servo** according to the wiring diagram.
-
-Make sure all connections match the diagram before powering on the robot.
-
-
-
-#### ⚠️ Warning – NRF24L01 Power
-
-The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V**.
-
-I connected both the transceiver and capacitor to the 3.3V pin on the Arduino using a simple Y-shaped wire made by soldering **one male wire to two female wires**.
-
-![Robot wiring diagram](docs/robot_wiring.jpg)
-
-### Step 5 - Install the 3D-printed parts
+### 2. Print the 3D Parts
 
 Print the following files from the `3D` folder:
 * Main Body.stl
@@ -141,14 +99,61 @@ Print upside down, and be sure to block support from the holes in the four corne
 * (optional) folder `3D/Different size dominoes`
 ![Different size dominoes](docs/DifferentSizeDominoes.jpg)
 
+### 3. Install the new lift/domino mechanism
+
 Assemble as shown:
+
 ![How to assemble](docs/FrontAssembly.jpg)
 
-If using the magazine, put the side with the narrow border towards the robot
+If using the magazine, put the side with the narrow border towards the robot.
 
 ![How to install magazine](docs/FrontAssembly2.jpg)
 
-### 2. Build the remote controller
+### 4. Rewire the Omnibot
+
+
+* Swap ribbon cables
+
+  The Domino Stacker uses a servo, which occupies one of the Arduino's hardware timer outputs. The stock Omnibot wiring uses PWM on pin 9, which conflicts with the servo.
+
+  To avoid changing the existing ribbon cables, the motor assignments are rearranged so that the three drive motors use PWM-capable pins while the lift motor (which only needs full-speed up/down movement) uses the remaining output.
+
+  The Omnibot has two ribbon cables connecting the Arduino board to the motor driver boards.
+
+  **Swap the two ribbon cables on the motor driver boards only.**
+
+  > **Important:** Leave the Arduino ends plugged in exactly as they are. Only unplug and swap the ends connected to the two motor driver boards.
+
+  ![Switching the ribbon cables](docs/RibbonCables01.jpg)
+  
+  ![Switching the ribbon cables](docs/RibbonCables02.jpg)
+
+* Swap yellow/gray motor cables
+
+  On the **left motor driver board**, swap these two cables:
+
+  * Yellow cable from **Motor 1**
+  * Gray cable from the **Lift Motor**
+
+  After swapping them, the motor connections should match the new pin assignments used by the software.
+
+  ![Switching the motor cables](docs/MotorCables.jpg)
+
+* Add the Receiver and Servo
+
+  Once the rewiring is complete, add the **receiver** and the **servo** according to the wiring diagram.
+
+  Make sure all connections match the diagram before powering on the robot.
+
+  #### ⚠️ Warning – NRF24L01 Power
+
+  The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V**.
+
+  I connected both the transceiver and capacitor to the 3.3V pin on the Arduino using a simple Y-shaped wire made by soldering **one male wire to two female wires**.
+
+  ![Robot wiring diagram](docs/robot_wiring.jpg)
+
+### 5. Build the remote controller
 
 Follow the wiring diagram:
 
@@ -158,15 +163,15 @@ The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V*
 
 ![Remote control wiring diagram](docs/transmitter_wiring.jpg)
 
-### 3. Install the required libraries
+### 6. Install the required libraries
 
 Install all of the libraries listed above using the Arduino Library Manager or their respective GitHub repositories.
 
-### 4. Upload the Arduino sketches
+### 7. Upload the Arduino sketches
 
-Upload `Omnibot_Domino_Stacker.ino` to the Omnibot, and `OmniRemote_Transmitter.ino` to the remote control
+Upload `Omnibot_Domino_Stacker.ino` to the Omnibot, and `OmniRemote_Transmitter.ino` to the remote control.
 
-### 5. Power on and connect
+### 8. Power on and connect
 
 Turn on the Omnibot and remote controller. The NRF24L01 modules should establish a wireless connection, allowing the robot to be controlled using the joysticks.
 
@@ -178,17 +183,6 @@ Turn on the Omnibot and remote controller. The NRF24L01 modules should establish
 | Right joystick left/right | Rotation                            |
 | Right joystick up/down    | Raise/lower dominoes                |
 | Right joystick button     | Drop dominoes / reset domino holder |
-
-
-## NRF24L01 Information
-
-The NRF24L01 is used for wireless communication between the remote controller and the Omnibot.
-
-This tutorial provides additional information about using the NRF24L01 with Arduino:
-
-[NRF24L01 Arduino Wireless Communication Tutorial](https://www.instructables.com/NRF24L01-Tutorial-Arduino-Wireless-Communication/)
-
-
 
 ## Optional Components
 
@@ -211,8 +205,12 @@ Set this to `1` to enable the LCD:
 ```cpp
 #define USE_LCD 1
 ```
+
+Wire the I2C LCD to the I2C port on A4 and A5
+
 hd44780 library by Bill Perry — required only when USE_LCD is set to 1  
-Install through the Arduino Library Manager or from the [hd44780 GitHub repository](https://github.com/duinoWitchery/hd44780)  
+Install through the Arduino Library Manager or from the [hd44780 GitHub repository](https://github.com/duinoWitchery/hd44780)
+
 If you are not using an LCD, you **do not need to install the hd44780 library**.
 
 ### LED Strip
@@ -225,12 +223,13 @@ LED support can be enabled by uncommenting this line in `OmniRemote_Config.h`:
 #define USELEDS
 ```
 
-When LED support is not needed, leave the line commented out:
+When LED support is not needed, leave the line commented out.
 
-If `USELEDS` is not defined, you **do not need to install the LED library**.
+Wire the led strip to pin 2
 
+FastLED library by Daniel Garcia - required only when USELEDS is defined.
 
-
+If `USELEDS` is not defined, you **do not need to install the FastLED library**.
 
 ## Project Status
 

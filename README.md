@@ -153,7 +153,11 @@ If using the magazine, put the side with the narrow border towards the robot.
 
   ![Robot wiring diagram](docs/robot_wiring.jpg)
 
-### 5. Build the remote controller
+### 5. Add Counterweight
+
+Reassemble the robot and install a counterweight at the back. The counterweight helps maintain enough friction on the back wheel.
+
+### 6. Build the remote controller
 
 Follow the wiring diagram:
 
@@ -163,15 +167,15 @@ The **NRF24L01 requires 3.3V**. Connect VCC to the Arduino's **3.3V pin, NOT 5V*
 
 ![Remote control wiring diagram](docs/transmitter_wiring.jpg)
 
-### 6. Install the required libraries
+### 7. Install the required libraries
 
 Install all of the libraries listed above using the Arduino Library Manager or their respective GitHub repositories.
 
-### 7. Upload the Arduino sketches
+### 8. Upload the Arduino sketches
 
 Upload `Omnibot_Domino_Stacker.ino` to the Omnibot, and `OmniRemote_Transmitter.ino` to the remote control.
 
-### 8. Power on and connect
+### 9. Power on and connect
 
 Turn on the Omnibot and remote controller. The NRF24L01 modules should establish a wireless connection, allowing the robot to be controlled using the joysticks.
 

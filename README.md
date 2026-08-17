@@ -54,20 +54,17 @@ This tutorial provides additional information about using the NRF24L01 with Ardu
 
 The project uses the following Arduino libraries:
 
-* **RF24** by TMRh20
+* **RF24** by TMRh20  
   Install through the Arduino Library Manager or from the [RF24 GitHub repository](https://github.com/tmrh20/RF24/)
 
-* **MapFloat** by radishlogic
+* **MapFloat** by radishlogic  
   [MapFloat GitHub repository](https://github.com/radishlogic/MapFloat)
 
-* **OneButton** by Matthias Hertel
+* **OneButton** by Matthias Hertel  
   Install through the Arduino Library Manager or from the [OneButton GitHub repository](https://github.com/mathertel/OneButton)
 
-* **hd44780** by Bill Perry
-  Install through the Arduino Library Manager or from the [hd44780 GitHub repository](https://github.com/duinoWitchery/hd44780)
-
-* **EasyJoystick** by Seth Kinzel
-  [EasyJoystick GitHub repository](https://github.com/SethKinzel/EasyJoystick)
+* **EasyJoystick** by Seth Kinzel  
+  Install through the Arduino Library Manager or from the [EasyJoystick GitHub repository](https://github.com/SethKinzel/EasyJoystick)
 
 ## Getting Started
 
@@ -188,6 +185,10 @@ Turn on the Omnibot and remote controller. The NRF24L01 modules should establish
 | Right joystick up/down    | Raise/lower dominoes                |
 | Right joystick button     | Drop dominoes / reset domino holder |
 
+## Fine-tuning
+
+You may need to adjust the `SERVO_DROP` and `SERVO_RESET` constants in `Omnibot_Domino_Stacker/config.h` to fine-tune the servo positions.
+
 ## Optional Components
 
 The following components are **completely optional** and are disabled by default. They do not affect the basic operation of the robot.
@@ -231,7 +232,8 @@ When LED support is not needed, leave the line commented out.
 
 Wire the led strip to pin 2
 
-FastLED library by Daniel Garcia - required only when USELEDS is defined.
+FastLED library by Daniel Garcia - required only when USELEDS is defined.  
+Install through the Arduino Library Manager or from the [FastLED GitHub repository](https://github.com/FastLED/FastLED)
 
 If `USELEDS` is not defined, you **do not need to install the FastLED library**.
 
@@ -247,5 +249,6 @@ The repository contains the hardware modifications, Arduino code, and 3D-printed
 * **TMRh20** – RF24 library
 * **radishlogic** – MapFloat library
 * **Matthias Hertel** – OneButton library
-* **Bill Perry** – hd44780 library
 * **Seth Kinzel** – EasyJoystick library
+* **Bill Perry** – hd44780 library
+* **Daniel Garcia** – FastLED library
